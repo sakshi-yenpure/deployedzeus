@@ -45,4 +45,4 @@ backend/db.sqlite3
 !nifty.csv
 *.xlsx
 !usa.xlsx
-sentiment_report.json
+sentiment_report.jsonbackend/users.csv
