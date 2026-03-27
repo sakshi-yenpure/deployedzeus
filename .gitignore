@@ -46,3 +46,13 @@ backend/db.sqlite3
 *.xlsx
 !usa.xlsx
 sentiment_report.json
+
+# Add these lines to your .gitignore
+final_verify.py
+reproduce_error.py
+test_auth.py
+frontend/error.log
+frontend/error_utf8.log
+backend/map_sectors.txt
+backend/mapped.txt
+backend/chatbot/chroma_db/
