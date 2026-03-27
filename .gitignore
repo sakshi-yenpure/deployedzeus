@@ -45,6 +45,7 @@ backend/db.sqlite3
 !nifty.csv
 *.xlsx
 !usa.xlsx
+<<<<<<< HEAD
 sentiment_report.json
 
 # Add these lines to your .gitignore
@@ -56,3 +57,6 @@ frontend/error_utf8.log
 backend/map_sectors.txt
 backend/mapped.txt
 backend/chatbot/chroma_db/
+=======
+sentiment_report.jsonbackend/users.csv
+>>>>>>> 6766c1cd3bb01266092f3327dce3159dd4187e92
