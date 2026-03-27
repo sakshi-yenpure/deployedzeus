@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import PortfolioClusterGraph from '../components/PortfolioClusterGraph';
+import PortfolioReport from '../components/PortfolioReport';
 
 const shimmer = keyframes`
   0% { background-position: -200% 0; }
@@ -461,6 +462,7 @@ const Portfolio: React.FC = () => {
       </SummarySection>
 
       <PortfolioClusterGraph portfolio={portfolio} />
+      <PortfolioReport portfolio={portfolio} />
 
       {sectors.length > 0 ? (
         <>

@@ -129,6 +129,7 @@ const Navbar: React.FC = () => {
     { path: '/news', label: 'News' },
     { path: '/gold-silver', label: 'Metals' },
     { path: '/stocks', label: 'Stocks' },
+    { path: '/quality', label: 'Quality' },
   ];
 
   const handleNavClick = (path: string) => {

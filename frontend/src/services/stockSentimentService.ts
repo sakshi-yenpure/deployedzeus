@@ -26,6 +26,8 @@ export interface StockSentimentItem {
   neutral_count: number;
   total_headlines: number;
   prediction: 'Bullish' | 'Bearish' | 'Neutral';
+  rating?: number;
+  signal?: string;
 }
 
 export interface SectorSentimentResponse {

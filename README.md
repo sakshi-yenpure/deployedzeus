@@ -10,10 +10,9 @@ A modern, real-time financial investment platform that combines stock analysis, 
 - **Individual Stock Analytics**:
   - 📈 PE Ratio Trend Charts (12-month history)
   - 🎯 K-Means Clustering Analysis (compare with similar stocks)
-- **Portfolio-Level Clustering**: View all stocks clustered by performance
-  - 🟢 High Growth (change > 5%)
-  - 🟡 Stable (-2% to 5%)
-  - 🔴 Declining (change < -2%)
+- **Portfolio Institutional Report**: 🏰 Below the clustering analysis, a comprehensive table of all holdings with live sentiment performance.
+- **Download Report**: 📥 Export your entire portfolio data, including sentiment metrics, directly to a CSV file.
+- **K-Means Clustering Analysis**: Compare and visualize your stocks by performance clusters.
 
 ### 📈 Market Sectors
 - **Browse Stocks by Sector**:
@@ -43,6 +42,12 @@ A modern, real-time financial investment platform that combines stock analysis, 
   - Education
 - **Search Functionality**: Find news by keyword
 - **News Sources**: See publication sources for credibility
+
+### 💎 Market Quality & Sentiment (New)
+- **Sector Sentiment Analysis**: Real-time analysis of the top 3 best-performing stocks per sector.
+- **Bullish/Bearish Classification**: Advanced VADER + rule-based sentiment scoring from financial news.
+- **Real-Time Data Refresh**: Trigger a fresh market scrape across 14+ sectors with one click.
+- **Institutional Quality Export**: Download the full market sentiment report for offline analysis.
 
 ### 🤖 AI Assistant Chatbot
 - **Interactive Help**: Ask questions about how to use the app
@@ -104,7 +109,8 @@ npm start
 | Gold & Silver | /gold-silver | Precious metals tracking |
 | Market Sectors | /stocks | Browse stocks by sector |
 | Sector Stocks | /stocks/:sector | Individual sector stock listings |
-| Vault | /portfolio | Your personal stock portfolio (Auth required) |
+| Vault | /portfolio | Your personal stock portfolio & Institutional Report |
+| Quality | /quality | Real-time market sentiment and sector analysis |
 | Sign Up | /signup | User registration and login |
 
 ### Backend Admin (localhost:8000)
@@ -196,6 +202,39 @@ The frontend features a modern, centered "Pill" navbar with:
 - **Django REST Framework**: API development
 - **Python**: Backend language
 - **SQLite**: Database
+
+## 📡 API Reference
+
+The Zeus-AI platform features a robust REST API for seamless financial data integration.
+
+### 🤖 Chat & Market Intelligence (`/api/chat/`)
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/` | `POST` | Primary AI assistant query (Sentiment-aware) |
+| `/history/` | `GET` | Get historical conversation logs |
+| `/quality-report/` | `GET` | Fetch institutional sector sentiment report |
+| `/refresh-quality-report/` | `POST` | Trigger fresh market scraper & analyzer |
+| `/download-quality-report/` | `GET` | Export market analysis to CSV |
+| `/all-stock-sentiment/` | `GET` | Bulk sentiment data for portfolio tracking |
+
+### 🔐 Authentication & Security (`/api/auth/`)
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/register/` | `POST` | User registration |
+| `/login/` | `POST` | User authentication & token issuance |
+| `/me/` | `GET` | Retrieve current user profile |
+| `/set-mpin/` | `POST` | Initialize 4-digit security MPIN |
+| `/verify-mpin/` | `POST` | Validate MPIN for secure actions |
+
+### 📈 Market Data & Portfolio (`/api/auth/`)
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/portfolio/` | `GET` | Retrieve user's personalized stock vault |
+| `/portfolio/add/` | `POST` | Add a new stock symbol to holdings |
+| `/stocks/sector/:sector/` | `GET` | List all stocks in a specific sector |
+| `/metals/prices/` | `GET` | Real-time Gold/Silver price feed |
+| `/news/` | `GET` | Aggregated financial news headlines |
+| `/mutual-funds/` | `GET` | View top-performing mutual funds |
 
 ### Charts & Visualization
 - **Recharts**: 
@@ -333,6 +372,9 @@ Contributions are welcome! Feel free to fork and submit pull requests.
 For issues or questions, please open an issue on GitHub or contact our support team.
 
 ## 🎯 Roadmap
+- [x] Market Sentiment Analysis 💎 (Implemented)
+- [x] Portfolio Institutional Reports 🏰 (Implemented)
+- [x] CSV Data Export 📥 (Implemented)
 - [ ] Mobile app (React Native)
 - [ ] Advanced technical analysis indicators
 - [ ] Backtesting system
@@ -340,7 +382,6 @@ For issues or questions, please open an issue on GitHub or contact our support t
 - [ ] Email notifications
 - [ ] Dark/Light theme toggle
 - [ ] Multi-language support
-- [ ] Export portfolio reports
 
 ---
 

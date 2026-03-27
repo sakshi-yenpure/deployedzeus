@@ -16,6 +16,9 @@ export interface StockData {
   marketCap?: number;
   eps?: number;
   volume?: number;
+  fifty_two_week_high?: number;
+  fifty_two_week_low?: number;
+  currency?: string;
   sector?: string;
   industry?: string;
   price?: number;
@@ -24,6 +27,15 @@ export interface StockData {
   pe?: number;
   mcv?: number;
   opportunity?: string;
+  discount?: string;
+  yearHigh?: number;
+  yearLow?: number;
+  signal?: string;
+  prediction?: string;
+  rating?: number;
+  sentiment?: string;
+  predicted_price?: number;
+  predicted_change?: number;
 }
 
 export interface MutualFundData {

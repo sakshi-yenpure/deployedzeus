@@ -12,6 +12,7 @@ import django
 from bs4 import BeautifulSoup
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 from datetime import datetime
+from django.apps import apps
 
 # Setup Django environment if needed
 if not os.environ.get('DJANGO_SETTINGS_MODULE'):
@@ -51,35 +52,35 @@ BEARISH_KEYWORDS = {
 # ─── Sector-specific news sources ───
 
 SECTOR_NEWS_SOURCES = {
-    'information technology': [
+    'it': [
         {'name': 'Moneycontrol IT', 'url': 'https://www.moneycontrol.com/news/business/it/', 'selector': 'li.clearfix h2 a, .news_list li h2 a, .FL h2 a'},
         {'name': 'ET IT', 'url': 'https://economictimes.indiatimes.com/tech/technology', 'selector': '.eachStory h3 a, .story_list h3 a, .data_list .title a'},
     ],
-    'financial services': [
+    'finance': [
         {'name': 'Moneycontrol Banking', 'url': 'https://www.moneycontrol.com/news/business/banks/', 'selector': 'li.clearfix h2 a, .news_list li h2 a, .FL h2 a'},
         {'name': 'ET Banking', 'url': 'https://economictimes.indiatimes.com/industry/banking/finance', 'selector': '.eachStory h3 a, .story_list h3 a, .data_list .title a'},
     ],
-    'automobile and auto components': [
+    'automobile': [
         {'name': 'Moneycontrol Auto', 'url': 'https://www.moneycontrol.com/news/business/automobile/', 'selector': 'li.clearfix h2 a, .news_list li h2 a, .FL h2 a'},
         {'name': 'ET Auto', 'url': 'https://economictimes.indiatimes.com/industry/auto', 'selector': '.eachStory h3 a, .story_list h3 a, .data_list .title a'},
     ],
-    'health care': [
+    'pharma': [
         {'name': 'Moneycontrol Pharma', 'url': 'https://www.moneycontrol.com/news/business/pharma/', 'selector': 'li.clearfix h2 a, .news_list li h2 a, .FL h2 a'},
         {'name': 'ET Pharma', 'url': 'https://economictimes.indiatimes.com/industry/healthcare/biotech/pharmaceuticals', 'selector': '.eachStory h3 a, .story_list h3 a, .data_list .title a'},
     ],
-    'power': [
+    'energy': [
         {'name': 'Moneycontrol Energy', 'url': 'https://www.moneycontrol.com/news/business/energy/', 'selector': 'li.clearfix h2 a, .news_list li h2 a, .FL h2 a'},
         {'name': 'ET Energy', 'url': 'https://economictimes.indiatimes.com/industry/energy', 'selector': '.eachStory h3 a, .story_list h3 a, .data_list .title a'},
     ],
-    'metals & mining': [
+    'metals': [
         {'name': 'Moneycontrol Metals', 'url': 'https://www.moneycontrol.com/news/business/metals/', 'selector': 'li.clearfix h2 a, .news_list li h2 a, .FL h2 a'},
         {'name': 'ET Metals', 'url': 'https://economictimes.indiatimes.com/industry/indl-goods/svs/metals-mining', 'selector': '.eachStory h3 a, .story_list h3 a, .data_list .title a'},
     ],
-    'fast moving consumer goods': [
+    'fmcg': [
         {'name': 'Moneycontrol FMCG', 'url': 'https://www.moneycontrol.com/news/business/consumer/', 'selector': 'li.clearfix h2 a, .news_list li h2 a, .FL h2 a'},
         {'name': 'ET FMCG', 'url': 'https://economictimes.indiatimes.com/industry/cons-products/fmcg', 'selector': '.eachStory h3 a, .story_list h3 a, .data_list .title a'},
     ],
-    'consumer services': [
+    'hospitality': [
         {'name': 'Moneycontrol Hospitality', 'url': 'https://www.moneycontrol.com/news/business/hospitality/', 'selector': 'li.clearfix h2 a, .news_list li h2 a, .FL h2 a'},
         {'name': 'ET Hospitality', 'url': 'https://economictimes.indiatimes.com/industry/services/hotels-/-restaurants', 'selector': '.eachStory h3 a, .story_list h3 a, .data_list .title a'},
     ],
@@ -87,7 +88,7 @@ SECTOR_NEWS_SOURCES = {
         {'name': 'Moneycontrol Realty', 'url': 'https://www.moneycontrol.com/news/business/real-estate/', 'selector': 'li.clearfix h2 a, .news_list li h2 a, .FL h2 a'},
         {'name': 'ET Real Estate', 'url': 'https://economictimes.indiatimes.com/industry/services/property-/-cstruction', 'selector': '.eachStory h3 a, .story_list h3 a, .data_list .title a'},
     ],
-    'capital goods': [
+    'capital_goods': [
         {'name': 'Moneycontrol Capital Goods', 'url': 'https://www.moneycontrol.com/news/tags/capital-goods.html', 'selector': 'li.clearfix h2 a, .news_list li h2 a, .FL h2 a'},
         {'name': 'ET Capital Goods', 'url': 'https://economictimes.indiatimes.com/industry/indl-goods/svs', 'selector': '.eachStory h3 a, .story_list h3 a, .data_list .title a'},
     ],
@@ -95,10 +96,10 @@ SECTOR_NEWS_SOURCES = {
         {'name': 'Moneycontrol Chemicals', 'url': 'https://www.moneycontrol.com/news/tags/chemicals.html', 'selector': 'li.clearfix h2 a, .news_list li h2 a, .FL h2 a'},
         {'name': 'ET Chemicals', 'url': 'https://economictimes.indiatimes.com/industry/indl-goods/chemicals', 'selector': '.eachStory h3 a, .story_list h3 a, .data_list .title a'},
     ],
-    'telecommunication': [
+    'telecom': [
         {'name': 'ET telecom', 'url': 'https://telecom.economictimes.indiatimes.com/', 'selector': '.eachStory h3 a, .story_list h3 a, .data_list .title a'},
     ],
-    'oil gas and consumable fuels': [
+    'oil_gas': [
         {'name': 'Moneycontrol Oil & Gas', 'url': 'https://www.moneycontrol.com/news/tags/oil-and-gas.html', 'selector': 'li.clearfix h2 a, .news_list li h2 a, .FL h2 a'},
     ],
     'us_stocks': [
@@ -522,9 +523,31 @@ STOCK_NAME_MAP = {
 
 # ─── Sector stock symbols (moved to views.py/database) ───
 
+def normalize_db_sector(sector):
+    sector = sector.lower()
+    if 'auto' in sector: return 'automobile'
+    if 'tech' in sector or 'it' == sector: return 'it'
+    if 'pharm' in sector or 'health' in sector: return 'pharma'
+    if 'energy' in sector or 'power' in sector: return 'energy'
+    if 'metal' in sector: return 'metals'
+    if 'fmcg' in sector or 'fast moving' in sector: return 'fmcg'
+    if 'hospitality' in sector: return 'hospitality'
+    if 'realty' in sector or 'estate' in sector: return 'realty'
+    if 'telecom' in sector: return 'telecom'
+    if 'chemical' in sector: return 'chemicals'
+    if 'capital' in sector: return 'capital_goods'
+    if 'bank' in sector or 'financ' in sector: return 'finance'
+    return sector
+
 def get_sector_symbols(sector):
     """Retrieve stock symbols for a given sector from the database."""
-    return list(Stock.objects.filter(sector=sector).values_list('symbol', flat=True))
+    # Try filtering by the raw sector name first (full name)
+    symbols = list(Stock.objects.filter(sector=sector).values_list('symbol', flat=True))
+    if not symbols:
+        # Fallback to normalized name if no stocks found with full name
+        db_sector = normalize_db_sector(sector)
+        symbols = list(Stock.objects.filter(sector=db_sector).values_list('symbol', flat=True))
+    return symbols
 
 # ─── Fallback headlines per sector ───
 
@@ -571,7 +594,6 @@ SECTOR_FALLBACK_HEADLINES = {
         {"headline": "Oil India reports higher crude production volumes", "source": "Market Analysis", "stock": "OIL.NS"},
         {"headline": "Energy sector rallies on global supply concerns", "source": "Market Analysis", "stock": "sector"},
         {"headline": "Torrent Power expands renewable portfolio with wind assets", "source": "Market Analysis", "stock": "TORNTPOWER.NS"},
-        {"headline": "ConocoPhillips announces strategic acquisition in Permian Basin", "source": "Market Analysis", "stock": "COP"},
     ],
     'pharma': [
         {"headline": "Sun Pharma wins FDA approval for a new specialty drug", "source": "Market Analysis", "stock": "SUNPHARMA.NS"},
@@ -581,28 +603,27 @@ SECTOR_FALLBACK_HEADLINES = {
         {"headline": "Lupin gains market share in respiratory and cardiovascular segments", "source": "Market Analysis", "stock": "LUPIN.NS"},
         {"headline": "AbbVie beats earnings estimates on Humira successor drugs", "source": "Market Analysis", "stock": "ABBV"},
         {"headline": "Pharma sector sees positive momentum on healthcare spending", "source": "Market Analysis", "stock": "sector"},
-        {"headline": "Aurobindo Pharma expands biosimilar development program", "source": "Market Analysis", "stock": "AUROPHARMA.NS"},
-        {"headline": "UnitedHealth Group raises full-year guidance on strong enrollment", "source": "Market Analysis", "stock": "UNH"},
+        {"headline": "US FDA approvals increase for Indian pharmaceutical companies", "source": "Market Analysis", "stock": "sector"},
     ],
     'fmcg': [
-        {"headline": "Nestle India reports steady volume growth in dairy segment", "source": "Market Analysis", "stock": "NESTLEIND.NS"},
-        {"headline": "Britannia expands rural distribution network significantly", "source": "Market Analysis", "stock": "BRITANNIA.NS"},
-        {"headline": "Hindustan Unilever faces margin pressure from raw material costs", "source": "Market Analysis", "stock": "HINDUNILVR.NS"},
+        {"headline": "HUL reports volume growth recovery in rural markets", "source": "Market Analysis", "stock": "HINDUNILVR.NS"},
+        {"headline": "Nestle India demand for premium products remains strong", "source": "Market Analysis", "stock": "NESTLEIND.NS"},
+        {"headline": "Britannia industries sees margin improvement from lower commodity costs", "source": "Market Analysis", "stock": "BRITANNIA.NS"},
+        {"headline": "FMCG sector benefits from cooling inflation and rural recovery", "source": "Market Analysis", "stock": "sector"},
         {"headline": "Marico's Saffola brand posts strong urban sales numbers", "source": "Market Analysis", "stock": "MARICO.NS"},
         {"headline": "Procter & Gamble beats quarterly revenue expectations", "source": "Market Analysis", "stock": "PG"},
         {"headline": "Coca-Cola sees demand growth in emerging markets", "source": "Market Analysis", "stock": "KO"},
-        {"headline": "FMCG sector outlook mixed on discretionary spending trends", "source": "Market Analysis", "stock": "sector"},
         {"headline": "Godrej Consumer Products launches premium personal care line", "source": "Market Analysis", "stock": "GODREJCP.NS"},
         {"headline": "Diageo premium spirits portfolio gains market traction", "source": "Market Analysis", "stock": "DEO"},
     ],
     'metals': [
-        {"headline": "Tata Steel production hits all-time high at Jamshedpur plant", "source": "Market Analysis", "stock": "TATASTEEL.NS"},
-        {"headline": "Hindalco benefits from rising aluminium prices globally", "source": "Market Analysis", "stock": "HINDALCO.NS"},
-        {"headline": "JSW Steel reports strong export volumes amid global demand", "source": "Market Analysis", "stock": "JSWSTEEL.NS"},
+        {"headline": "Tata Steel focuses on cost reduction amidst global pricing volatility", "source": "Market Analysis", "stock": "TATASTEEL.NS"},
+        {"headline": "Hindalco benefits from strong aluminum demand in aerospace sector", "source": "Market Analysis", "stock": "HINDALCO.NS"},
+        {"headline": "JSW Steel targets capacity expansion to meet domestic demand", "source": "Market Analysis", "stock": "JSWSTEEL.NS"},
+        {"headline": "Metal prices rally on supply constraints and infra demand", "source": "Market Analysis", "stock": "sector"},
         {"headline": "Vale iron ore shipments increase on China infrastructure push", "source": "Market Analysis", "stock": "VALE"},
         {"headline": "Rio Tinto copper output rises supporting revenue growth", "source": "Market Analysis", "stock": "RIO"},
         {"headline": "Jindal Steel announces capacity expansion at Odisha complex", "source": "Market Analysis", "stock": "JINDALSTEL.NS"},
-        {"headline": "Metal prices rally on global supply chain disruptions", "source": "Market Analysis", "stock": "sector"},
         {"headline": "National Aluminium faces headwinds from rising input costs", "source": "Market Analysis", "stock": "NATIONALUM.NS"},
         {"headline": "Freeport-McMoRan sees strong copper demand from green energy", "source": "Market Analysis", "stock": "FCX"},
     ],
@@ -710,7 +731,8 @@ def scrape_sector_headlines(sector):
         'Connection': 'keep-alive',
     }
 
-    sources = SECTOR_NEWS_SOURCES.get(sector, SECTOR_NEWS_SOURCES.get('us_stocks', []))
+    db_sector = normalize_db_sector(sector)
+    sources = SECTOR_NEWS_SOURCES.get(db_sector, SECTOR_NEWS_SOURCES.get('us_stocks', []))
 
     for source in sources:
         try:
@@ -751,7 +773,12 @@ def scrape_sector_headlines(sector):
 
 def match_headline_to_stock(headline_lower, sector):
     """Match a headline to a specific stock symbol in the sector."""
+    # Use both full sector name and normalized name to get stocks
     stocks = Stock.objects.filter(sector=sector)
+    if not stocks.exists():
+        db_sector = normalize_db_sector(sector)
+        stocks = Stock.objects.filter(sector=db_sector)
+    
     matched_stocks = []
 
     for stock in stocks:
@@ -834,73 +861,221 @@ def analyze_headlines(headlines, sector):
 
 
 def aggregate_per_stock(analyzed_headlines, sector):
-    """Aggregate sentiment per stock in the sector."""
-    sector_symbols = get_sector_symbols(sector)
+    """
+    Aggregate sentiment per stock.
+    Strategy:
+      1. Find headlines that DIRECTLY mention this stock (by symbol or name).
+      2. Find generic sector-wide headlines.
+      3. Compute a UNIQUE weighted score per stock combining:
+           - Stock-specific news sentiment (high weight if found)
+           - Sector news sentiment (low weight)
+           - Individual technical data: 52-week position, PE, price change
+    This guarantees DIFFERENT predictions for every stock.
+    """
+    from .models import Stock as StockModel
+    # Try filtering by full sector name
+    db_stocks = list(StockModel.objects.filter(sector=sector))
+    if not db_stocks:
+        db_sector_name = normalize_db_sector(sector)
+        db_stocks = list(StockModel.objects.filter(sector=db_sector_name))
+    
     stock_sentiments = {}
 
-    for symbol in sector_symbols:
-        # Collect headlines relevant to this stock (direct match + sector-wide)
-        relevant = [
+    # Pre-separate headlines: stock-specific vs sector-wide
+    sector_headlines = [h for h in analyzed_headlines if h['stocks'] == ['sector']]
+    sector_avg_score = (sum(h['combined_score'] for h in sector_headlines) / len(sector_headlines)) if sector_headlines else 0.0
+
+    for stock_obj in db_stocks:
+        symbol = stock_obj.symbol
+
+        # 1. Headlines that specifically mention this stock
+        stock_specific = [
             h for h in analyzed_headlines
-            if symbol in h['stocks'] or 'sector' in h['stocks']
+            if symbol in h['stocks'] and h['stocks'] != ['sector']
         ]
 
-        if not relevant:
-            # No headlines found, assign neutral
-            stock_sentiments[symbol] = {
-                'overall_score': 0,
-                'classification': 'Neutral',
-                'confidence': 50,
-                'positive_count': 0,
-                'negative_count': 0,
-                'neutral_count': 0,
-                'total_headlines': 0,
-                'prediction': 'Neutral',
-            }
-            continue
-
-        scores = [h['combined_score'] for h in relevant]
-        avg_score = sum(scores) / len(scores)
-
-        positive_count = sum(1 for h in relevant if h['classification'] == 'positive')
-        negative_count = sum(1 for h in relevant if h['classification'] == 'negative')
-        neutral_count = sum(1 for h in relevant if h['classification'] == 'neutral')
-        total = len(relevant)
-
-        # Determine classification and prediction
-        if avg_score >= 0.2:
-            classification = 'Strong Bullish'
-            prediction = 'Bullish'
-        elif avg_score >= 0.05:
-            classification = 'Mildly Bullish'
-            prediction = 'Bullish'
-        elif avg_score <= -0.2:
-            classification = 'Strong Bearish'
-            prediction = 'Bearish'
-        elif avg_score <= -0.05:
-            classification = 'Mildly Bearish'
-            prediction = 'Bearish'
+        # 2. Compute stock-specific sentiment score
+        if stock_specific:
+            specific_scores = [h['combined_score'] for h in stock_specific]
+            specific_avg = sum(specific_scores) / len(specific_scores)
+            # Stock-specific news dominates: 70% specific + 30% sector average
+            news_score = specific_avg * 0.70 + sector_avg_score * 0.30
+            positive_count = sum(1 for h in stock_specific if h['classification'] == 'positive')
+            negative_count = sum(1 for h in stock_specific if h['classification'] == 'negative')
+            neutral_count = sum(1 for h in stock_specific if h['classification'] == 'neutral')
+            total = len(stock_specific)
         else:
-            classification = 'Neutral'
-            prediction = 'Neutral'
+            # No specific news: use sector average only (this will vary per stock via technical data)
+            news_score = sector_avg_score * 0.30  # sector alone has lower weight
+            positive_count = 0
+            negative_count = 0
+            neutral_count = 0
+            total = 0
 
-        # Confidence calculation
-        score_magnitude = abs(avg_score)
-        consensus = max(positive_count, negative_count, neutral_count) / total if total > 0 else 0
-        confidence = min(99, int(50 + score_magnitude * 40 + consensus * 20))
+        # 3. Classify news sentiment
+        if news_score >= 0.2:
+            news_classification = 'Strong Bullish'
+        elif news_score >= 0.05:
+            news_classification = 'Mildly Bullish'
+        elif news_score <= -0.2:
+            news_classification = 'Strong Bearish'
+        elif news_score <= -0.05:
+            news_classification = 'Mildly Bearish'
+        else:
+            news_classification = 'Neutral'
+
+        # 4. Technical features (UNIQUE per stock based on real DB data)
+        sentiment_feat = (news_score + 1) / 2  # map -1..1 -> 0..1
+
+        # Price position relative to 52-week range
+        hi = stock_obj.fifty_two_week_high
+        lo = stock_obj.fifty_two_week_low
+        cp = stock_obj.current_price
+        if hi > lo and hi > 0:
+            price_pos = (cp - lo) / (hi - lo)
+        else:
+            price_pos = 0.5
+        price_pos = max(0.0, min(1.0, price_pos))
+        opp_feat = 1.0 - price_pos   # far from high = more opportunity
+
+        # PE ratio feature
+        pe = stock_obj.pe_ratio
+        if pe <= 0:
+            pe_feat = 0.5
+        elif pe < 15:
+            pe_feat = 0.9    # undervalued
+        elif pe < 30:
+            pe_feat = 0.7    # fair value
+        elif pe < 50:
+            pe_feat = 0.4    # slightly expensive
+        else:
+            pe_feat = 0.2    # very expensive
+
+        # Price momentum
+        chg = stock_obj.change_percent
+        if chg > 2:
+            momentum_feat = 1.0
+        elif chg > 0:
+            momentum_feat = 0.8
+        elif chg == 0:
+            momentum_feat = 0.5
+        else:
+            momentum_feat = 0.2
+
+        # 5. Weighted score: News (40%), Technical Position (30%), PE (20%), Momentum (10%)
+        weighted_score = (
+            sentiment_feat * 0.40 +
+            opp_feat       * 0.30 +
+            pe_feat        * 0.20 +
+            momentum_feat  * 0.10
+        )
+
+        # 6. Rating (1-10) and Signal
+        rating = round(max(1.0, min(10.0, weighted_score * 10)), 1)
+
+        if weighted_score > 0.72:
+            signal = 'Strong Buy'
+        elif weighted_score > 0.58:
+            signal = 'Buy'
+        elif weighted_score > 0.45:
+            signal = 'Hold'
+        elif weighted_score > 0.35:
+            signal = 'Weak Sell'
+        elif weighted_score > 0.22:
+            signal = 'Sell'
+        else:
+            signal = 'Strong Sell'
+
+        # For display classification, use news sentiment (unique per stock due to technical mix)
+        classification = news_classification
+
+        # Confidence based on how much stock-specific data we have
+        score_magnitude = abs(news_score)
+        confidence = min(99, int(50 + score_magnitude * 40 + (total / max(1, len(analyzed_headlines))) * 20))
 
         stock_sentiments[symbol] = {
-            'overall_score': round(avg_score, 4),
+            'overall_score': round(news_score, 4),
             'classification': classification,
             'confidence': confidence,
             'positive_count': positive_count,
             'negative_count': negative_count,
             'neutral_count': neutral_count,
             'total_headlines': total,
-            'prediction': prediction,
+            'prediction': 'Bullish' if news_score > 0.05 else 'Bearish' if news_score < -0.05 else 'Neutral',
+            'rating': rating,
+            'signal': signal,
         }
 
+        # 7. Persist to DB
+        try:
+            stock_obj.sentiment = classification
+            stock_obj.rating = int(round(rating))
+            stock_obj.signal = signal
+            stock_obj.save(update_fields=['sentiment', 'rating', 'signal'])
+        except Exception as e:
+            logger.warning(f"Could not save sentiment for {symbol}: {str(e)}")
+
     return stock_sentiments
+
+
+def generate_technical_headlines(sector):
+    """Generate pseudo-headlines based on real stock performance to ensure data-driven sentiment"""
+    Stock = apps.get_model('users', 'Stock')
+    
+    # Try filtering by full sector name
+    stocks = Stock.objects.filter(sector=sector)
+    if not stocks.exists():
+        db_sector = normalize_db_sector(sector)
+        stocks = Stock.objects.filter(sector=db_sector)
+    
+    tech_headlines = []
+    for stock in stocks:
+        # Price performance headlines
+        if stock.change_percent > 3:
+            tech_headlines.append({
+                'headline': f"{stock.name} shares surge as buying momentum accelerates",
+                'source': 'Technical Analysis',
+                'stock': stock.symbol
+            })
+        elif stock.change_percent < -3:
+            tech_headlines.append({
+                'headline': f"{stock.name} faces selling pressure as price breaks support levels",
+                'source': 'Technical Analysis',
+                'stock': stock.symbol
+            })
+            
+        # 52-week position headlines
+        if stock.fifty_two_week_high > 0:
+            price_pos = (stock.current_price - stock.fifty_two_week_low) / (stock.fifty_two_week_high - stock.fifty_two_week_low) if (stock.fifty_two_week_high - stock.fifty_two_week_low) > 0 else 0.5
+            
+            if price_pos > 0.95:
+                tech_headlines.append({
+                    'headline': f"{stock.name} trading near 52-week high, showing strong bullish trend",
+                    'source': 'Technical Analysis',
+                    'stock': stock.symbol
+                })
+            elif price_pos < 0.1:
+                tech_headlines.append({
+                    'headline': f"{stock.name} tests 52-week low, oversold conditions may attract buyers",
+                    'source': 'Technical Analysis',
+                    'stock': stock.symbol
+                })
+        
+        # P/E ratio headlines
+        if stock.pe_ratio > 40:
+             tech_headlines.append({
+                'headline': f"{stock.name} trading at premium valuation relative to historic averages",
+                'source': 'Fundamental Analysis',
+                'stock': stock.symbol
+            })
+        elif 0 < stock.pe_ratio < 15:
+            tech_headlines.append({
+                'headline': f"{stock.name} appears undervalued with low trailing P/E ratio",
+                'source': 'Fundamental Analysis',
+                'stock': stock.symbol
+            })
+
+    return tech_headlines
 
 
 def analyze_sector_sentiment(sector):
@@ -909,9 +1084,14 @@ def analyze_sector_sentiment(sector):
 
     # Scrape real headlines
     headlines = scrape_sector_headlines(sector)
+    
+    # Generate technical headlines based on real-time price data
+    tech_headlines = generate_technical_headlines(sector)
+    headlines.extend(tech_headlines)
 
-    # If too few scraped, supplement with fallback
-    fallback = SECTOR_FALLBACK_HEADLINES.get(sector, [])
+    # If still too few, supplement with fallback
+    db_sector = normalize_db_sector(sector)
+    fallback = SECTOR_FALLBACK_HEADLINES.get(db_sector, [])
     if len(headlines) < 5:
         logger.info(f"Only {len(headlines)} scraped headlines for {sector}, adding fallback data")
         # Convert fallback to same format

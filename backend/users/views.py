@@ -9,6 +9,7 @@ from django.db import IntegrityError
 from .serializers import UserRegistrationSerializer, LoginSerializer, UserSerializer, StockSerializer, PortfolioStockSerializer
 from .models import Stock, PortfolioStock, UserActivity, NewsletterSubscription, PaymentRecord, User
 import yfinance as yf
+from .stock_sentiment import analyze_sector_sentiment, normalize_db_sector
 import logging
 from datetime import datetime, timedelta
 import random
@@ -64,6 +65,56 @@ STOCK_NAME_MAPPING = {
     'WFC': 'Wells Fargo & Company',
     'GS': 'The Goldman Sachs Group, Inc.',
     
+    # IT (New)
+    'COFORGE.NS': 'Coforge Limited',
+    'KPITTECH.NS': 'KPIT Technologies Ltd',
+    'LTM.NS': 'LTIMindtree Limited',
+    'MPHASIS.NS': 'Mphasis Limited',
+    'OFSS.NS': 'Oracle Financial Services',
+    'PERSISTENT.NS': 'Persistent Systems Ltd',
+    'TATAELXSI.NS': 'Tata Elxsi Limited',
+    'TATATECH.NS': 'Tata Technologies Ltd',
+
+    # Telecom (New)
+    'BHARTIARTL.NS': 'Bharti Airtel Limited',
+    'BHARTIHEXA.NS': 'Bharti Hexacom Ltd',
+    'INDUSTOWER.NS': 'Indus Towers Limited',
+    'TATACOMM.NS': 'Tata Communications Ltd',
+    'IDEA.NS': 'Vodafone Idea Limited',
+
+    # Automobile (New)
+    'BHARATFORG.NS': 'Bharat Forge Limited',
+    'BOSCHLTD.NS': 'Bosch Limited',
+    'EXIDEIND.NS': 'Exide Industries Ltd',
+    'HYUNDAI.NS': 'Hyundai Motor India Ltd',
+    'MRF.NS': 'MRF Limited',
+    'MOTHERSON.NS': 'Samvardhana Motherson',
+    'SONACOMS.NS': 'Sona BLW Precision',
+    'TMPV.NS': 'Tata Motors PV',
+    'TIINDIA.NS': 'Tube Investments of India',
+
+    # Capital Goods (New)
+    'ABB.NS': 'ABB India Limited',
+    'APLAPOLLO.NS': 'APL Apollo Tubes Ltd',
+    'ASTRAL.NS': 'Astral Limited',
+    'BDL.NS': 'Bharat Dynamics Limited',
+    'BEL.NS': 'Bharat Electronics Ltd',
+    'BHEL.NS': 'Bharat Heavy Electricals',
+    'CGPOWER.NS': 'CG Power & Industrial',
+    'COCHINSHIP.NS': 'Cochin Shipyard Ltd',
+    'CUMMINSIND.NS': 'Cummins India Limited',
+    'HAL.NS': 'Hindustan Aeronautics',
+    'POWERINDIA.NS': 'Hitachi Energy India',
+    'KEI.NS': 'KEI Industries Limited',
+    'MAZDOCK.NS': 'Mazagon Dock Shipbuilders',
+    'POLYCAB.NS': 'Polycab India Limited',
+    'PREMIERENE.NS': 'Premier Energies Ltd',
+    'ENRIN.NS': 'Siemens Energy India',
+    'SIEMENS.NS': 'Siemens Limited',
+    'SUPREMEIND.NS': 'Supreme Industries Ltd',
+    'SUZLON.NS': 'Suzlon Energy Limited',
+    'WAAREEENER.NS': 'Waaree Energies Ltd',
+    
     # Energy
     'RELIANCE.NS': 'Reliance Industries Limited',
     'NTPC.NS': 'NTPC Limited',
@@ -100,20 +151,37 @@ STOCK_NAME_MAPPING = {
 
 # Indian sector stocks data with international stocks
 INDIAN_SECTOR_STOCKS = {
-    # IT Sector: 5 Indian + 4 International
+    # IT Sector: Complete from nifty.csv + 4 International
     'it': [
-        'INFY.NS', 'TCS.NS', 'HCLTECH.NS', 'WIPRO.NS', 'TECHM.NS',  # 5 Indian
-        'MSFT', 'GOOG', 'AAPL', 'NVDA'  # 4 International
+        'COFORGE.NS', 'HCLTECH.NS', 'INFY.NS', 'KPITTECH.NS', 'LTM.NS', 
+        'MPHASIS.NS', 'OFSS.NS', 'PERSISTENT.NS', 'TCS.NS', 'TATAELXSI.NS', 
+        'TATATECH.NS', 'TECHM.NS', 'WIPRO.NS',
+        'MSFT', 'GOOG', 'AAPL', 'NVDA'
+    ],
+    # Telecom Sector: Complete from nifty.csv + 3 International
+    'telecom': [
+        'BHARTIARTL.NS', 'BHARTIHEXA.NS', 'INDUSTOWER.NS', 'TATACOMM.NS', 'IDEA.NS',
+        'T', 'VZ', 'TMUS'
     ],
     # Banking Sector: 5 Indian + 4 International
     'banking': [
-        'HDFCBANK.NS', 'ICICIBANK.NS', 'SBIN.NS', 'KOTAKBANK.NS', 'AXISBANK.NS',  # 5 Indian
-        'JPM', 'BAC', 'WFC', 'GS'  # 4 International
+        'HDFCBANK.NS', 'ICICIBANK.NS', 'SBIN.NS', 'KOTAKBANK.NS', 'AXISBANK.NS',
+        'JPM', 'BAC', 'WFC', 'GS'
     ],
-    # Automobile Sector: 5 Indian + 4 International
+    # Automobile Sector: Complete from nifty.csv + 4 International
     'automobile': [
-        'TATAMOTORS.NS', 'M&M.NS', 'MARUTI.NS', 'BAJAJ-AUTO.NS', 'HEROMOTOCO.NS',  # 5 Indian
-        'TSLA', 'TM', 'GM', 'F'  # 4 International
+        'BAJAJ-AUTO.NS', 'BHARATFORG.NS', 'BOSCHLTD.NS', 'EICHERMOT.NS', 'EXIDEIND.NS', 
+        'HEROMOTOCO.NS', 'HYUNDAI.NS', 'MRF.NS', 'M&M.NS', 'MARUTI.NS', 
+        'MOTHERSON.NS', 'SONACOMS.NS', 'TVSMOTOR.NS', 'TMPV.NS', 'TIINDIA.NS',
+        'TSLA', 'TM', 'GM', 'F'
+    ],
+    # Capital Goods Sector: Complete from nifty.csv + 4 International
+    'capital_goods': [
+        'ABB.NS', 'APLAPOLLO.NS', 'ASHOKLEY.NS', 'ASTRAL.NS', 'BDL.NS', 'BEL.NS', 
+        'BHEL.NS', 'CGPOWER.NS', 'COCHINSHIP.NS', 'CUMMINSIND.NS', 'HAL.NS', 
+        'POWERINDIA.NS', 'KEI.NS', 'MAZDOCK.NS', 'POLYCAB.NS', 'PREMIERENE.NS', 
+        'ENRIN.NS', 'SIEMENS.NS', 'SUPREMEIND.NS', 'SUZLON.NS', 'WAAREEENER.NS',
+        'GE', 'CAT', 'HON'
     ],
     # Energy Sector: 5 Indian + 4 International
     'energy': [
@@ -494,109 +562,131 @@ def get_news(request):
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
+def normalize_db_sector(sector):
+    sector = sector.lower()
+    if 'auto' in sector: return 'automobile and auto components'
+    if 'tech' in sector or 'it' == sector: return 'information technology'
+    if 'pharm' in sector or 'health' in sector: return 'health care'
+    if 'energy' in sector or 'power' in sector: return 'power'
+    if 'metal' in sector: return 'metals & mining'
+    if 'fmcg' in sector or 'fast moving' in sector: return 'fast moving consumer goods'
+    if 'hospitality' in sector: return 'consumer services'
+    if 'realty' in sector or 'estate' in sector: return 'realty'
+    if 'telecom' in sector: return 'telecommunication'
+    if 'chemical' in sector: return 'chemicals'
+    if 'capital' in sector: return 'capital goods'
+    if 'bank' in sector or 'financ' in sector: return 'financial services'
+    return sector
+
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def get_sector_stocks(request, sector):
     """Fetch stock data for a specific sector with database-first approach"""
     try:
-        sector = sector.lower()
+        raw_sector = sector.lower()
+        sector = normalize_db_sector(raw_sector)
 
-        # Check if we have stocks for this sector in the database
+        # Fetch stocks from DB (stock list is never touched here)
         db_stocks = Stock.objects.filter(sector=sector)
-        
-        # If no stocks in database, seed it from INDIAN_SECTOR_STOCKS
-        if not db_stocks.exists():
-            if sector in INDIAN_SECTOR_STOCKS:
-                symbols = INDIAN_SECTOR_STOCKS[sector]
-                # Seed database (this will be slow first time but persistent)
-                for symbol in symbols:
-                    try:
-                        # For seeding, we'll use fallback data for speed
-                        # Realistic fallback prices for Indian and International stocks
-                        REALISTIC_PRICES = {
-                            # IT Stocks
-                            'INFY.NS': 1560, 'TCS.NS': 3950, 'HCLTECH.NS': 1720, 'WIPRO.NS': 520, 'TECHM.NS': 1450,
-                            'MSFT': 380, 'GOOG': 170, 'AAPL': 235, 'NVDA': 985,
-                            # Banking Stocks
-                            'HDFCBANK.NS': 1650, 'ICICIBANK.NS': 1200, 'SBIN.NS': 820, 'KOTAKBANK.NS': 1800, 'AXISBANK.NS': 1180,
-                            'JPM': 205, 'BAC': 38, 'WFC': 58, 'GS': 450,
-                            # Automobile Stocks
-                            'TATAMOTORS.NS': 920, 'M&M.NS': 2800, 'MARUTI.NS': 12800, 'BAJAJ-AUTO.NS': 9800, 'HEROMOTOCO.NS': 5400,
-                            'TSLA': 415, 'TM': 215, 'GM': 58, 'F': 12,
-                            # Energy Stocks
-                            'RELIANCE.NS': 2950, 'NTPC.NS': 380, 'POWERGRID.NS': 320, 'TORNTPOWER.NS': 1650, 'OIL.NS': 680,
-                            'XOM': 110, 'CVX': 165, 'COP': 128, 'MPC': 85,
-                            # Pharma Stocks
-                            'SUNPHARMA.NS': 1750, 'CIPLA.NS': 1580, 'DRHP.NS': 2800, 'AUROPHARMA.NS': 1480, 'LUPIN.NS': 1880,
-                            'JNJ': 157, 'UNH': 520, 'PFE': 28, 'ABBV': 205,
-                            # FMCG Stocks
-                            'NESTLEIND.NS': 25500, 'BRITANNIA.NS': 5800, 'MARICO.NS': 680, 'HINDUNILVR.NS': 2800, 'GODREJCP.NS': 1450,
-                            'PG': 162, 'KO': 63, 'NSRGY': 95, 'DEO': 72,
-                            # Metals Stocks
-                            'TATASTEEL.NS': 165, 'HINDALCO.NS': 680, 'JSWSTEEL.NS': 920, 'NATIONALUM.NS': 185, 'JINDALSTEL.NS': 980,
-                            'VALE': 12, 'RIO': 68, 'SCCO': 45, 'FCX': 45,
-                            # Finance Stocks
-                            'BAJFINANCE.NS': 7200, 'HDFC.NS': 2725, 'MUTHOOTFIN.NS': 1800, 'CHOLAFIN.NS': 1380, 'PFC.NS': 520,
-                            'BX': 135, 'KKR': 135, 'BLK': 910, 'AMP': 305,
-                            # Hospitality Stocks
-                            'INDHOTEL.NS': 680, 'EIHOTEL.NS': 420, 'TAJGVK.NS': 320, 'CHALET.NS': 880, 'LUXIND.NS': 1800,
-                            'RCL': 165, 'CCL': 22, 'MAR': 320, 'HLT': 215,
-                            # Realty Stocks
-                            'DLF.NS': 820, 'OBEROI.NS': 1800, 'GPIL.NS': 1120, 'SUNTECK.NS': 580, 'LODHA.NS': 1200,
-                            'SPG': 143, 'PLD': 56, 'VNO': 48, 'AMB': 128
-                        }
-                        
-                        base_price = REALISTIC_PRICES.get(symbol, 100)
-                        variation = random.uniform(-0.05, 0.05)
-                        current_price = base_price * (1 + variation)
-                        
-                        Stock.objects.get_or_create(
-                            symbol=symbol,
-                            defaults={
-                                'name': STOCK_NAME_MAPPING.get(symbol, symbol.replace('.NS', '')),
-                                'sector': sector,
-                                'current_price': float(current_price),
-                                'change': 0,
-                                'change_percent': 0,
-                                'day_high': float(current_price * 1.01),
-                                'day_low': float(current_price * 0.99),
-                                'pe_ratio': round(random.uniform(15, 30), 2),
-                                'market_cap': random.randint(50000000000, 800000000000),
-                                'volume': random.randint(100000, 50000000)
-                            }
-                        )
-                    except Exception as e:
-                        logger.error(f"Error seeding stock {symbol}: {str(e)}")
-                
-                db_stocks = Stock.objects.filter(sector=sector)
-            else:
-                return Response({
-                    'success': False,
-                    'message': f'Sector {sector} not found'
-                }, status=status.HTTP_404_NOT_FOUND)
 
-        # Map DB stocks to response format
-        stocks_data = []
+        # Serialize base data
         ist = pytz.timezone('Asia/Kolkata')
-        
-        for stock in db_stocks:
-            stocks_data.append({
-                'symbol': stock.symbol,
-                'name': stock.name,
-                'currentPrice': round(stock.current_price, 2),
-                'change': round(stock.change, 2),
-                'changePercent': round(stock.change_percent, 2),
-                'dayHigh': round(stock.day_high, 2),
-                'dayLow': round(stock.day_low, 2),
-                'peRatio': round(stock.pe_ratio, 2),
-                'marketCap': stock.market_cap,
-                'volume': stock.volume,
-                'sector': stock.sector
-            })
+        stocks_data = list(StockSerializer(db_stocks, many=True).data)
+
+        # Compute unique per-stock predictions based on individual technical data
+        # This runs on every request so predictions are always live
+        stocks_to_update = []
+        for i, stock_obj in enumerate(db_stocks):
+            # --- PE feature ---
+            pe = stock_obj.pe_ratio or 0
+            if pe <= 0:
+                pe_feat = 0.5
+            elif pe < 15:
+                pe_feat = 0.9   # undervalued
+            elif pe < 30:
+                pe_feat = 0.7   # fair
+            elif pe < 50:
+                pe_feat = 0.4   # slightly expensive
+            else:
+                pe_feat = 0.2   # very expensive
+
+            # --- 52-week price position (UNIQUE per stock) ---
+            hi = stock_obj.fifty_two_week_high or 0
+            lo = stock_obj.fifty_two_week_low or 0
+            cp = stock_obj.current_price or 0
+            if hi > lo > 0:
+                price_pos = (cp - lo) / (hi - lo)
+            else:
+                price_pos = 0.5
+            price_pos = max(0.0, min(1.0, price_pos))
+            opp_feat = 1.0 - price_pos   # lower price position = more upside opportunity
+
+            # --- Momentum ---
+            chg = stock_obj.change_percent or 0
+            if chg > 2:
+                momentum_feat = 1.0
+            elif chg > 0:
+                momentum_feat = 0.75
+            elif chg == 0:
+                momentum_feat = 0.5
+            elif chg > -2:
+                momentum_feat = 0.35
+            else:
+                momentum_feat = 0.15
+
+            # --- Weighted composite score ---
+            # Weights: opportunity (40%), PE (35%), momentum (25%)
+            # "opportunity" here means room to grow (lower in 52w range is bullish)
+            weighted = opp_feat * 0.40 + pe_feat * 0.35 + momentum_feat * 0.25
+
+            # --- Rating (1-10) ---
+            rating = round(max(1.0, min(10.0, weighted * 10)), 1)
+
+            # --- Signal ---
+            if weighted > 0.72:
+                signal = 'Strong Buy'
+            elif weighted > 0.58:
+                signal = 'Buy'
+            elif weighted > 0.45:
+                signal = 'Hold'
+            elif weighted > 0.35:
+                signal = 'Weak Sell'
+            elif weighted > 0.22:
+                signal = 'Sell'
+            else:
+                signal = 'Strong Sell'
+
+            # --- Sentiment label based on price position + momentum ---
+            if weighted >= 0.65:
+                sentiment = 'Strong Bullish'
+            elif weighted >= 0.52:
+                sentiment = 'Mildly Bullish'
+            elif weighted >= 0.40:
+                sentiment = 'Neutral'
+            elif weighted >= 0.28:
+                sentiment = 'Mildly Bearish'
+            else:
+                sentiment = 'Strong Bearish'
+
+            # Inject into response (overrides DB defaults)
+            stocks_data[i]['sentiment'] = sentiment
+            stocks_data[i]['rating'] = int(round(rating))
+            stocks_data[i]['signal'] = signal
+
+            # Save back to DB so it persists for portfolio views etc.
+            stock_obj.sentiment = sentiment
+            stock_obj.rating = int(round(rating))
+            stock_obj.signal = signal
+            stocks_to_update.append(stock_obj)
+
+        # Bulk update for performance
+        if stocks_to_update:
+            Stock.objects.bulk_update(stocks_to_update, ['sentiment', 'rating', 'signal'])
 
         return Response({
             'success': True,
             'sector': sector,
+            'raw_sector': raw_sector,
             'data': stocks_data,
             'count': len(stocks_data),
             'timestamp': datetime.now(ist).isoformat()
@@ -778,12 +868,39 @@ def get_portfolio(request):
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
+def calculate_lr_prediction(prices):
+    """Simple linear regression to predict next price point"""
+    if not prices or len(prices) < 2:
+        return prices[-1] if prices else 0, 0
+    
+    n = len(prices)
+    x = list(range(n))
+    y = [float(p) for p in prices]
+    
+    x_mean = sum(x) / n
+    y_mean = sum(y) / n
+    
+    num = sum((x[i] - x_mean) * (y[i] - y_mean) for i in range(n))
+    den = sum((x[i] - x_mean) ** 2 for i in range(n))
+    
+    slope = num / den if den != 0 else 0
+    intercept = y_mean - slope * x_mean
+    
+    # Predict next day (index n)
+    pred = slope * n + intercept
+    current = y[-1]
+    change = ((pred - current) / current * 100) if current != 0 else 0
+    
+    return pred, change
+
+
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def refresh_sector_prices(request, sector):
     """Fetch live prices for all stocks in a sector and save to database"""
     try:
-        sector = sector.lower()
+        raw_sector = sector.lower()
+        sector = normalize_db_sector(raw_sector)
 
         if sector not in INDIAN_SECTOR_STOCKS:
             return Response({
@@ -792,6 +909,11 @@ def refresh_sector_prices(request, sector):
             }, status=status.HTTP_404_NOT_FOUND)
 
         symbols = INDIAN_SECTOR_STOCKS[sector]
+        
+        # Pre-fetch sentiment for the entire sector
+        sentiment_data = analyze_sector_sentiment(raw_sector)
+        stock_sentiments = sentiment_data.get('stocks', {})
+        
         updated_stocks = []
         
         # Delete existing prices for this sector to refresh
@@ -836,55 +958,64 @@ def refresh_sector_prices(request, sector):
                 ticker = yf.Ticker(symbol)
                 info = ticker.info
                 
-                # Try to get live yfinance data
-                hist = ticker.history(period='5d')
+                # Fetch 1 month of history for better linear regression
+                hist = ticker.history(period='1mo')
                 
                 current_price = 0
                 change = 0
-                change_pct = 0
-                day_high = 0
-                day_low = 0
-                volume = 0
+                # Fetch real data using yfinance
+                ticker = yf.Ticker(symbol)
+                info = ticker.info
+                fast = ticker.fast_info
                 
-                # If we have historical data, use it
-                if not hist.empty and len(hist) > 0:
-                    latest_data = hist.iloc[-1]
-                    current_price = latest_data.get('Close', 0)
-                    day_high = latest_data.get('High', current_price)
-                    day_low = latest_data.get('Low', current_price)
-                    volume = latest_data.get('Volume', 0)
-                    
-                    if len(hist) >= 2:
-                        previous_close = hist.iloc[-2].get('Close', current_price)
-                    else:
-                        previous_close = info.get('regularMarketPreviousClose', current_price)
-                    
-                    change = current_price - previous_close if previous_close and previous_close > 0 else 0
-                    change_pct = (change / previous_close * 100) if previous_close and previous_close > 0 else 0
+                # Try to get price from various fields
+                current_price = info.get('currentPrice', info.get('regularMarketPrice', fast.get('lastPrice', 0)))
+                previous_close = info.get('previousClose', info.get('regularMarketPreviousClose', fast.get('previousClose', 0)))
+                day_high = info.get('dayHigh', info.get('regularMarketDayHigh', fast.get('dayHigh', 0)))
+                day_low = info.get('dayLow', info.get('regularMarketDayLow', fast.get('dayLow', 0)))
+                volume = info.get('volume', info.get('regularMarketVolume', fast.get('lastVolume', 0)))
+                
+                # 52w high/low
+                fifty_two_week_high = info.get('fiftyTwoWeekHigh', fast.get('yearHigh', 0))
+                fifty_two_week_low = info.get('fiftyTwoWeekLow', fast.get('yearLow', 0))
+                
+                # Real-time Linear Regression Prediction
+                hist_prices = hist['Close'].tolist() if not hist.empty else []
+                pred_price, pred_change = calculate_lr_prediction(hist_prices)
+                
+                # Determine currency
+                currency = 'INR' if symbol.endswith('.NS') else 'USD'
+                
+                # Calculate change
+                change = 0
+                change_pct = 0
+                if current_price > 0 and previous_close > 0:
+                    change = current_price - previous_close
+                    change_pct = (change / previous_close) * 100
+                
+                # Get sentiment results for this specific stock
+                sent = stock_sentiments.get(symbol, {})
+                sentiment_val = sent.get('classification', 'Neutral')
+                rating_val = sent.get('rating', 5)
+                signal_val = sent.get('signal', 'Hold')
                 
                 # If yfinance data is invalid or missing, use realistic fallback
                 if current_price <= 0:
                     base_price = REALISTIC_PRICES.get(symbol, 100)
-                    variation = random.uniform(-0.05, 0.05)
+                    variation = random.uniform(-0.02, 0.02)
                     current_price = base_price * (1 + variation)
-                    
-                    prev_variation = random.uniform(-0.03, 0.03)
-                    previous_close = base_price * (1 + prev_variation)
-                    
+                    previous_close = base_price
                     change = current_price - previous_close
-                    change_pct = (change / previous_close * 100) if previous_close > 0 else 0
-                    day_high = current_price * random.uniform(1.005, 1.02)
-                    day_low = current_price * random.uniform(0.98, 0.995)
-                    volume = random.randint(100000, 50000000)
+                    change_pct = (change / previous_close * 100)
+                    day_high = current_price * 1.01
+                    day_low = current_price * 0.99
+                    fifty_two_week_high = current_price * 1.2
+                    fifty_two_week_low = current_price * 0.8
                 
                 # Get company info
                 company_name = STOCK_NAME_MAPPING.get(symbol, info.get('longName', info.get('shortName', symbol.replace('.NS', ''))))
                 pe_ratio = info.get('trailingPE', info.get('forwardPE', 0))
-                market_cap = info.get('marketCap', 0)
-                
-                # For US stocks, use realistic market cap ranges
-                if not '.NS' in symbol and not market_cap:
-                    market_cap = random.randint(50000000000, 800000000000)
+                market_cap = info.get('marketCap', fast.get('marketCap', 0))
                 
                 # Save to database
                 stock, created = Stock.objects.update_or_create(
@@ -892,14 +1023,22 @@ def refresh_sector_prices(request, sector):
                     defaults={
                         'name': company_name,
                         'sector': sector,
+                        'currency': currency,
                         'current_price': float(current_price),
                         'change': float(change),
                         'change_percent': float(change_pct),
-                        'day_high': float(day_high),
-                        'day_low': float(day_low),
+                        'day_high': float(day_high if day_high else current_price),
+                        'day_low': float(day_low if day_low else current_price),
                         'pe_ratio': float(pe_ratio) if pe_ratio and pe_ratio > 0 else 0,
                         'market_cap': int(market_cap) if market_cap else 0,
-                        'volume': int(volume) if volume else 0
+                        'volume': int(volume) if volume else 0,
+                        'fifty_two_week_high': float(fifty_two_week_high if fifty_two_week_high else current_price * 1.1),
+                        'fifty_two_week_low': float(fifty_two_week_low if fifty_two_week_low else current_price * 0.9),
+                        'predicted_price': float(pred_price if pred_price else current_price),
+                        'predicted_change': float(pred_change),
+                        'sentiment': sentiment_val,
+                        'rating': rating_val,
+                        'signal': signal_val
                     }
                 )
                 
@@ -929,9 +1068,14 @@ def refresh_sector_prices(request, sector):
                             'change_percent': float(change_pct),
                             'day_high': float(current_price * random.uniform(1.005, 1.02)),
                             'day_low': float(current_price * random.uniform(0.98, 0.995)),
+                            'fifty_two_week_high': float(current_price * random.uniform(1.1, 1.3)),
+                            'fifty_two_week_low': float(current_price * random.uniform(0.7, 0.9)),
                             'pe_ratio': round(random.uniform(15, 30), 2),
                             'market_cap': random.randint(50000000000, 800000000000) if not '.NS' in symbol else random.randint(10000000000, 500000000000),
-                            'volume': random.randint(100000, 50000000)
+                            'volume': random.randint(100000, 50000000),
+                            'sentiment': 'Neutral',
+                            'rating': 5,
+                            'signal': 'Hold'
                         }
                     )
                     updated_stocks.append(StockSerializer(stock).data)

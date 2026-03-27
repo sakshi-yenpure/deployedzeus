@@ -121,12 +121,20 @@ class LoginSerializer(serializers.Serializer):
 
 
 class StockSerializer(serializers.ModelSerializer):
+    # Add camelCase aliases for frontend compatibility
+    currentPrice = serializers.FloatField(source='current_price', read_only=True)
+    peRatio = serializers.FloatField(source='pe_ratio', read_only=True)
+    dayHigh = serializers.FloatField(source='day_high', read_only=True)
+    dayLow = serializers.FloatField(source='day_low', read_only=True)
+
     class Meta:
         model = Stock
         fields = (
-            'symbol', 'name', 'sector', 'current_price', 'change', 
-            'change_percent', 'day_high', 'day_low', 'pe_ratio', 
-            'market_cap', 'volume', 'last_updated'
+            'symbol', 'name', 'sector', 'currency', 'current_price', 'currentPrice',
+            'change', 'change_percent', 'day_high', 'dayHigh', 'day_low', 'dayLow',
+            'pe_ratio', 'peRatio', 'market_cap', 'volume', 
+            'fifty_two_week_high', 'fifty_two_week_low',
+            'predicted_price', 'predicted_change', 'sentiment', 'rating', 'signal', 'last_updated'
         )
         read_only_fields = ('last_updated',)
 

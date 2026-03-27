@@ -49,13 +49,16 @@ def _node_execute(state: GraphState) -> GraphState:
         result = run(query, user_id)
         return {**state, **result}
     except Exception as e:
-        logger.error(f"Agent execution failed for intent={intent}: {e}")
+        logger.error(f"Agent execution failed for intent={intent}: {e}", exc_info=True)
         return {
             **state,
             'response': (
                 "⚡ **Zeus AI is temporarily unavailable.**\n\n"
-                "Our AI systems are experiencing high load. Please try again in a moment.\n"
-                "In the meantime, check the live market data in the Stocks and Metals pages."
+                "I encountered an unexpected error while processing your request. "
+                "The team has been notified. In the meantime, you can:\n"
+                "• Check live market data on the **Stocks** page\n"
+                "• View your **Portfolio**\n"
+                "• Try a simpler query like \"What is TCS price?\""
             ),
             'intent': 'error',
             'error': str(e)

@@ -5,6 +5,8 @@ import { motion } from 'framer-motion';
 import { yfinanceService, StockData } from '../services/yfinanceService';
 import { useAuth } from '../contexts/AuthContext';
 import { fetchSectorStockSentiment, SectorSentimentResponse, StockSentimentItem, StockHeadlineData } from '../services/stockSentimentService';
+import { calculateDiscount } from '../services/predictionService';
+import { CheckCircle, AlertTriangle, Info, Star } from 'lucide-react';
 
 /* ─── pulse animation ─── */
 const pulse = keyframes`
@@ -13,10 +15,11 @@ const pulse = keyframes`
 `;
 
 const SectorStocksContainer = styled.div`
-  max-width: 1400px;
-  margin: 0 auto;
-  padding: 2rem;
+  width: 100%;
+  padding: 1rem 2rem;
+  margin: 0;
   min-height: 80vh;
+  box-sizing: border-box;
 `;
 
 const PageHeader = styled(motion.div)`
@@ -397,6 +400,41 @@ const HeadlineText = styled.div`
   margin-bottom: 0.5rem;
 `;
 
+const PriceCell = styled.td`
+  font-weight: 700;
+  color: ${props => props.theme.colors.textPrimary};
+`;
+
+const SentimentBadge = styled.span<{ type: string }>`
+  padding: 0.2rem 0.6rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: ${props => 
+    props.type === 'positive' ? 'rgba(0, 255, 163, 0.15)' : 
+    props.type === 'negative' ? 'rgba(255, 46, 99, 0.15)' : 'rgba(255,255,255,0.06)'};
+  color: ${props => 
+    props.type === 'positive' ? '#00ffa3' : 
+    props.type === 'negative' ? '#ff2e63' : '#fff'};
+`;
+
+const SignalBadge = styled.span<{ type: string }>`
+  padding: 0.2rem 0.6rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  background: ${props => 
+    props.type.includes('BUY') ? 'rgba(0, 255, 163, 0.2)' : 
+    props.type.includes('SELL') ? 'rgba(255, 46, 99, 0.2)' : 'rgba(255,255,255,0.1)'};
+  color: ${props => 
+    props.type.includes('BUY') ? '#00ffa3' : 
+    props.type.includes('SELL') ? '#ff2e63' : '#fff'};
+`;
+
 const HeadlineMeta = styled.div`
   display: flex;
   align-items: center;
@@ -451,8 +489,27 @@ const SectorStocks: React.FC = () => {
     try {
       console.log(`Fetching stocks for sector: ${sector}`);
       const response = await yfinanceService.getSectorStocks(sector!);
-      console.log('Received stocks:', response);
-      setStocks(response);
+      const mappedStocks = response.map((stock: any) => ({
+        symbol: stock.symbol,
+        name: stock.name,
+        currency: stock.currency,
+        currentPrice: stock.current_price,
+        change: stock.change,
+        changePercent: stock.change_percent,
+        dayHigh: stock.day_high,
+        dayLow: stock.day_low,
+        peRatio: stock.pe_ratio,
+        marketCap: stock.market_cap,
+        volume: stock.volume,
+        fifty_two_week_high: stock.fifty_two_week_high,
+        fifty_two_week_low: stock.fifty_two_week_low,
+        predicted_price: stock.predicted_price,
+        predicted_change: stock.predicted_change,
+        sentiment: stock.sentiment,
+        rating: stock.rating,
+        signal: stock.signal
+      }));
+      setStocks(mappedStocks);
     } catch (err) {
       console.error('Error fetching sector stocks:', err);
       setError('Failed to fetch stock data. Please try again later.');
@@ -503,6 +560,7 @@ const SectorStocks: React.FC = () => {
         const updatedStocks = data.stocks.map((stock: any) => ({
           symbol: stock.symbol,
           name: stock.name,
+          currency: stock.currency,
           currentPrice: stock.current_price,
           change: stock.change,
           changePercent: stock.change_percent,
@@ -510,7 +568,14 @@ const SectorStocks: React.FC = () => {
           dayLow: stock.day_low,
           peRatio: stock.pe_ratio,
           marketCap: stock.market_cap,
-          volume: stock.volume
+          volume: stock.volume,
+          fifty_two_week_high: stock.fifty_two_week_high,
+          fifty_two_week_low: stock.fifty_two_week_low,
+          predicted_price: stock.predicted_price,
+          predicted_change: stock.predicted_change,
+          sentiment: stock.sentiment,
+          rating: stock.rating,
+          signal: stock.signal
         }));
         setStocks(updatedStocks);
         alert('Stock prices refreshed and saved successfully!');
@@ -548,20 +613,20 @@ const SectorStocks: React.FC = () => {
     setAddedStocks(new Set(addedStocks).add(stock.symbol));
   };
 
+  const formatCurrency = useCallback((val: number, currencyCode: string = 'INR') => {
+    return new Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency: currencyCode,
+      maximumFractionDigits: 2
+    }).format(val);
+  }, []);
+
   if (!sector) {
     return <div>Invalid sector</div>;
   }
 
   const isUS = sector === 'us_stocks';
   const sectorName = sector.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
-
-  const formatCurrency = (val: number) => {
-    return new Intl.NumberFormat('en-IN', {
-      style: 'currency',
-      currency: isUS ? 'USD' : 'INR',
-      maximumFractionDigits: 2
-    }).format(val);
-  };
 
   const formatLargeNumber = (val: number) => {
     if (isUS) {
@@ -803,45 +868,80 @@ const SectorStocks: React.FC = () => {
                 <tr>
                   <th>Company Name</th>
                   <th>Symbol</th>
-                  <th>Current Price</th>
-                  <th>Today's Change</th>
-                  <th>Change %</th>
-                  <th>Day High</th>
-                  <th>Day Low</th>
+                  <th>Price</th>
+                  <th>52W High</th>
+                  <th>52W Low</th>
+                  <th>Opportunity</th>
+                  <th>Discount</th>
                   <th>P/E Ratio</th>
-                  <th>Market Cap</th>
-                  <th>Volume</th>
+                  <th>LR Prediction</th>
+                  <th>Sentiment</th>
+                  <th>Rating</th>
+                  <th>Signal</th>
                   <th>Action</th>
                 </tr>
               </thead>
               <tbody>
-                {filteredStocks.map((stock, index) => (
-                  <tr key={index}>
-                    <td>{stock.name}</td>
-                    <td>{stock.symbol}</td>
-                    <td>{formatCurrency(stock.currentPrice ?? 0)}</td>
-                    <td style={{ color: (stock.change ?? 0) >= 0 ? '#4caf50' : '#f44336' }}>
-                      {(stock.change ?? 0) >= 0 ? '+' : ''}{formatCurrency(stock.change ?? 0)}
-                    </td>
-                    <td style={{ color: (stock.changePercent ?? 0) >= 0 ? '#4caf50' : '#f44336' }}>
-                      {(stock.changePercent ?? 0) >= 0 ? '+' : ''}{(stock.changePercent ?? 0).toFixed(2)}%
-                    </td>
-                    <td>{formatCurrency(stock.dayHigh ?? 0)}</td>
-                    <td>{formatCurrency(stock.dayLow ?? 0)}</td>
-                    <td>{(stock.peRatio ?? 0).toFixed(2)}</td>
-                    <td>{formatLargeNumber(stock.marketCap ?? 0)}</td>
-                    <td>{(stock.volume ?? 0).toLocaleString('en-US')}</td>
-                    <td>
-                      <AddButton 
-                        isAdded={addedStocks.has(stock.symbol)}
-                        onClick={() => !addedStocks.has(stock.symbol) && handleAddToPortfolio(stock)}
-                        disabled={addedStocks.has(stock.symbol)}
-                      >
-                        {addedStocks.has(stock.symbol) ? '✓ Added' : 'Add'}
-                      </AddButton>
-                    </td>
-                  </tr>
-                ))}
+                {filteredStocks.map((stock, index) => {
+                  const sent = stock as any;
+                  
+                  // Calculations
+                  const high52 = stock.fifty_two_week_high || (stock.currentPrice || stock.price || 0) * 1.1;
+                  const low52 = stock.fifty_two_week_low || (stock.currentPrice || stock.price || 0) * 0.9;
+                  const currentPrice = stock.currentPrice || stock.price || 0;
+                  
+                  const discount = high52 > 0 ? ((high52 - currentPrice) / high52) * 100 : 0;
+                  const opportunity = currentPrice > 0 ? ((high52 / currentPrice) - 1) * 100 : 0;
+                  
+                  const sentType = stock.sentiment === 'Bullish' || stock.sentiment === 'Positive' ? 'positive' : 
+                                  stock.sentiment === 'Bearish' || stock.sentiment === 'Negative' ? 'negative' : 'neutral';
+
+                  return (
+                    <tr key={index}>
+                      <td style={{ fontWeight: 700 }}>{stock.name}</td>
+                      <td style={{ color: '#4ecdc4', fontWeight: 600 }}>{stock.symbol}</td>
+                      <PriceCell>{formatCurrency(currentPrice, stock.currency)}</PriceCell>
+                      <td style={{ color: '#00ffa3' }}>{formatCurrency(high52, stock.currency)}</td>
+                      <td style={{ color: '#ff2e63' }}>{formatCurrency(low52, stock.currency)}</td>
+                      <td style={{ color: '#00d2ff', fontWeight: 700 }}>+{opportunity.toFixed(1)}%</td>
+                      <td style={{ color: '#ff9800', fontWeight: 600 }}>{discount.toFixed(1)}%</td>
+                      <td>{(stock.peRatio ?? 0).toFixed(2)}</td>
+                      <PriceCell>
+                        {formatCurrency(stock.predicted_price || currentPrice, stock.currency)}
+                        <div style={{ fontSize: '0.7rem', color: (stock.predicted_change ?? 0) >= 0 ? '#00ffa3' : '#ff2e63' }}>
+                          ({(stock.predicted_change ?? 0) >= 0 ? '+' : ''}{(stock.predicted_change ?? 0).toFixed(1)}%)
+                        </div>
+                      </PriceCell>
+                      <td>
+                        <SentimentBadge type={sentType}>
+                          {sentType === 'positive' ? <CheckCircle size={12} /> : 
+                           sentType === 'negative' ? <AlertTriangle size={12} /> : 
+                           <Info size={12} />}
+                          {stock.sentiment || 'Neutral'}
+                        </SentimentBadge>
+                      </td>
+                      <td style={{ fontWeight: 800, color: '#4ecdc4' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <Star size={12} fill="#4ecdc4" /> {stock.rating || '-'}
+                        </div>
+                      </td>
+                      <td>
+                        <SignalBadge type={stock.signal?.toUpperCase() || 'HOLD'}>
+                          {stock.signal || 'Hold'}
+                        </SignalBadge>
+                      </td>
+                      <td>
+                        <AddButton 
+                          isAdded={addedStocks.has(stock.symbol)}
+                          onClick={() => !addedStocks.has(stock.symbol) && handleAddToPortfolio(stock)}
+                          disabled={addedStocks.has(stock.symbol)}
+                        >
+                          {addedStocks.has(stock.symbol) ? '✓' : 'Add'}
+                        </AddButton>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </StockTable>
           ) : (
@@ -853,32 +953,17 @@ const SectorStocks: React.FC = () => {
         </ResultsContainer>
       )}
 
-      {/* ======================== Sentiment Analysis Section ======================== */}
-      <SentimentSection
-        initial={{ opacity: 0, y: 30 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.6, duration: 0.6 }}
-      >
-        <SentimentSectionTitle>
-          🧠 Stock Sentiment Analysis <span>VADER + Rule-Based</span>
-        </SentimentSectionTitle>
-
+      <div style={{ marginTop: '3rem' }}>
         {sentimentLoading ? (
-          <GlassCard style={{ padding: '4rem', textAlign: 'center', marginBottom: '3rem' }}>
+          <GlassCard style={{ padding: '4rem', textAlign: 'center' }}>
             <LoadingPulse>
               <div style={{ fontSize: '2.5rem', marginBottom: '1rem' }}>🔍</div>
               <p>Scraping financial news &amp; analyzing sentiment for {sectorName} stocks...</p>
-              <MethodBadge style={{ display: 'inline-flex', marginTop: '1rem' }}>
-                ⚡ Sources: Moneycontrol · Economic Times · Financial News
-              </MethodBadge>
             </LoadingPulse>
           </GlassCard>
         ) : sentimentData && (
           <>
-            {renderSentimentTable()}
             {renderHeadlines()}
-
-            {/* Metadata footer */}
             <div style={{
               display: 'flex',
               gap: '2rem',
@@ -898,7 +983,7 @@ const SectorStocks: React.FC = () => {
             </div>
           </>
         )}
-      </SentimentSection>
+      </div>
     </SectorStocksContainer>
   );
 };

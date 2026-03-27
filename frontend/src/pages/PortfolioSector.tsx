@@ -1,7 +1,7 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth, PortfolioItem } from '../contexts/AuthContext';
 import { predictPrice, calculateDiscount, formatPrediction } from '../services/predictionService';
 import { fetchSectorStockSentiment, SectorSentimentResponse, StockSentimentItem } from '../services/stockSentimentService';
@@ -9,7 +9,7 @@ import { yfinanceService, StockData } from '../services/yfinanceService';
 import PERatioTrendGraph from '../components/PERatioTrendGraph';
 import KMeansVisualization from '../components/KMeansVisualization';
 import PricePredictionGraph from '../components/PricePredictionGraph';
-import { Brain, TrendingUp as TrendIcon, CheckCircle, AlertTriangle, Info } from 'lucide-react';
+import { Brain, TrendingUp as TrendIcon, CheckCircle, AlertTriangle, Info, Zap, BarChart2, Star, Shield } from 'lucide-react';
 
 const PortfolioSectorContainer = styled.div`
   max-width: 1600px;
@@ -340,6 +340,8 @@ const SECTOR_ICONS: { [key: string]: string } = {
 interface ExtendedStockData extends PortfolioItem {
   minPrice?: number;
   maxPrice?: number;
+  fifty_two_week_high?: number;
+  fifty_two_week_low?: number;
   peRatio?: number;
 }
 
@@ -357,6 +359,18 @@ const PortfolioSector: React.FC = () => {
   const [addedSymbols, setAddedSymbols] = useState<Set<string>>(new Set());
 
   const sectorName = sector?.toLowerCase() || '';
+
+  // Initial fetch of sentiment on mount
+  useEffect(() => {
+    if (sectorName) {
+      setLoadingSentiment(true);
+      fetchSectorStockSentiment(sectorName)
+        .then(data => setSentimentData(data))
+        .catch(err => console.error('Error fetching initial sentiment:', err))
+        .finally(() => setLoadingSentiment(false));
+    }
+  }, [sectorName]);
+
   const sectorStocks = useMemo(
     () => portfolioBySector[sectorName] || [],
     [portfolioBySector, sectorName]
@@ -374,25 +388,13 @@ const PortfolioSector: React.FC = () => {
   );
 
   // Fetch detailed stock data for analytics
-  const handleLoadAnalytics = useCallback(async (type: 'pe' | 'kmeans' | 'prediction' | 'ai_summary' | 'ml_forecast' | 'recommend') => {
+  const handleLoadAnalytics = useCallback(async (type: 'pe' | 'kmeans' | 'prediction' | 'ai_summary' | 'ml_forecast' | 'recommend' | 'table') => {
     if (activeAnalytics === type) {
       setActiveAnalytics('none');
       return;
     }
 
     setActiveAnalytics(type);
-
-    if (['ai_summary', 'recommend'].includes(type) && !sentimentData) {
-      setLoadingSentiment(true);
-      try {
-        const data = await fetchSectorStockSentiment(sectorName);
-        setSentimentData(data);
-      } catch (err) {
-        console.error('Error fetching sentiment:', err);
-      } finally {
-        setLoadingSentiment(false);
-      }
-    }
 
     if (type === 'recommend' && allSectorStocks.length === 0) {
       setLoadingStocks(true);
@@ -411,17 +413,22 @@ const PortfolioSector: React.FC = () => {
 
       for (const stock of sectorStocks) {
         if (!newData.has(stock.symbol)) {
-          // Simulate fetching detailed data
-          const minPrice = stock.price * (0.85 + Math.random() * 0.1);
-          const maxPrice = stock.price * (1.1 + Math.random() * 0.1);
-          const peRatio = 15 + Math.random() * 10;
-
-          newData.set(stock.symbol, {
-            ...stock,
-            minPrice,
-            maxPrice,
-            peRatio
-          });
+          try {
+            const response = await fetch(`http://localhost:8000/api/auth/stocks/symbol/${stock.symbol}/`);
+            if (response.ok) {
+              const data = await response.json();
+              newData.set(stock.symbol, {
+                ...stock,
+                price: data.current_price || stock.price,
+                change: data.change || stock.change,
+                peRatio: data.pe_ratio,
+                fifty_two_week_high: data.fifty_two_week_high,
+                fifty_two_week_low: data.fifty_two_week_low
+              });
+            }
+          } catch (err) {
+            console.error(`Error fetching detail for ${stock.symbol}:`, err);
+          }
         }
       }
 
@@ -429,7 +436,7 @@ const PortfolioSector: React.FC = () => {
     } catch (err) {
       console.error('Error loading analytics:', err);
     }
-  }, [activeAnalytics, sectorStocks, stocksData]);
+  }, [activeAnalytics, sectorStocks, stocksData, sectorName, allSectorStocks.length]);
 
   // Refresh live data from yfinance
   const handleRefreshData = useCallback(async () => {
@@ -447,11 +454,11 @@ const PortfolioSector: React.FC = () => {
 
             newData.set(stock.symbol, {
               ...stock,
-              price: data.currentPrice || stock.price,
+              price: data.current_price || stock.price,
               change: data.change || stock.change,
-              minPrice,
-              maxPrice,
-              peRatio
+              fifty_two_week_high: data.fifty_two_week_high,
+              fifty_two_week_low: data.fifty_two_week_low,
+              peRatio: data.pe_ratio
             });
           }
         } catch (err) {
@@ -813,54 +820,98 @@ const PortfolioSector: React.FC = () => {
               <StockTable>
                 <thead>
                   <tr>
+                    <th>Company Name</th>
                     <th>Symbol</th>
-                    <th>Company</th>
-                    <th>Current Price</th>
-                    <th>Min Price</th>
-                    <th>Max Price</th>
-                    <th>Discount %</th>
+                    <th>Price</th>
+                    <th>52W High</th>
+                    <th>52W Low</th>
+                    <th>Opportunity</th>
+                    <th>Discount</th>
                     <th>P/E Ratio</th>
-                    <th>Price Predict</th>
-                    <th>Pred Change %</th>
-                    <th>Direction</th>
+                    <th>LR Prediction</th>
+                    <th>Sentiment</th>
+                    <th>Rating</th>
+                    <th>Signal</th>
                     <th>Action</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filteredStocks.map((stock) => {
                     const extended = (stocksData.get(stock.symbol) || stock) as ExtendedStockData;
-                    const minPrice = extended.minPrice || stock.price * 0.9;
-                    const maxPrice = extended.maxPrice || stock.price * 1.1;
-                    const peRatio = extended.peRatio || 20;
-
+                    const fiftyTwoHigh = extended.fifty_two_week_high || stock.price * 1.1;
+                    const fiftyTwoLow = extended.fifty_two_week_low || stock.price * 0.9;
+                    const peRatio = extended.peRatio || 0;
+                    
+                    const sentiment = sentimentData?.stocks[stock.symbol];
                     const prediction = predictPrice(stock.price, stock.change);
-                    const discount = calculateDiscount(stock.price, minPrice, maxPrice);
-                    const formatted = formatPrediction(prediction);
-
+                    
+                    // Calculations
+                    const discount = fiftyTwoHigh > 0 ? ((fiftyTwoHigh - stock.price) / fiftyTwoHigh) * 100 : 0;
+                    const opportunity = stock.price > 0 ? ((fiftyTwoHigh / stock.price) - 1) * 100 : 0;
+                    
                     return (
                       <tr key={stock.symbol}>
+                        <td style={{ fontWeight: 700 }}>{stock.name}</td>
                         <td style={{ fontWeight: 600, color: '#4ecdc4' }}>{stock.symbol}</td>
-                        <td>{stock.name}</td>
                         <PriceCell>₹{stock.price.toFixed(2)}</PriceCell>
-                        <td>₹{minPrice.toFixed(2)}</td>
-                        <td>₹{maxPrice.toFixed(2)}</td>
+                        <td style={{ color: '#00ffa3' }}>₹{fiftyTwoHigh.toFixed(2)}</td>
+                        <td style={{ color: '#ff2e63' }}>₹{fiftyTwoLow.toFixed(2)}</td>
+                        <td style={{ color: '#00d2ff', fontWeight: 700 }}>+{opportunity.toFixed(1)}%</td>
                         <td style={{ color: '#ff9800', fontWeight: 600 }}>{discount.toFixed(1)}%</td>
-                        <td>{peRatio.toFixed(2)}</td>
-                        <PriceCell>{formatted.price}</PriceCell>
-                        <td style={{ color: prediction.predictedChange >= 0 ? '#00b894' : '#ff6b6b', fontWeight: 600 }}>
-                          {formatted.change}
+                        <td>{peRatio > 0 ? peRatio.toFixed(2) : '-'}</td>
+                        <PriceCell>
+                          {prediction.predictedPrice.toFixed(2)}
+                          <div style={{ fontSize: '0.7rem', color: prediction.predictedChange >= 0 ? '#00ffa3' : '#ff2e63' }}>
+                            ({prediction.predictedChange >= 0 ? '+' : ''}{prediction.predictedChange.toFixed(1)}%)
+                          </div>
+                        </PriceCell>
+                        <td>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                            {sentiment?.prediction === 'Bullish' ? <CheckCircle size={14} color="#00ffa3" /> : 
+                             sentiment?.prediction === 'Bearish' ? <AlertTriangle size={14} color="#ff2e63" /> : 
+                             <Info size={14} color="#ffc107" />}
+                            {sentiment?.classification || 'Neutral'}
+                          </div>
+                        </td>
+                        <td style={{ fontWeight: 800, color: '#4ecdc4' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <Star size={12} fill="#4ecdc4" /> {sentiment?.rating || '-'}
+                          </div>
                         </td>
                         <td>
-                          <UpDown direction={prediction.direction}>
-                            {prediction.direction === 'up' ? '📈 UP' : '📉 DOWN'}
-                          </UpDown>
+                          <span style={{ 
+                            padding: '0.2rem 0.6rem', 
+                            borderRadius: '4px', 
+                            fontSize: '0.75rem',
+                            fontWeight: 700,
+                            background: sentiment?.signal?.includes('Buy') ? 'rgba(0, 255, 163, 0.15)' : 
+                                       sentiment?.signal?.includes('Sell') ? 'rgba(255, 46, 99, 0.15)' : 'rgba(255,255,255,0.1)',
+                            color: sentiment?.signal?.includes('Buy') ? '#00ffa3' : 
+                                   sentiment?.signal?.includes('Sell') ? '#ff2e63' : '#fff'
+                          }}>
+                            {sentiment?.signal || 'Hold'}
+                          </span>
                         </td>
                         <td>
-                          <RemoveButton
-                            onClick={() => removeFromPortfolio(stock.symbol)}
-                          >
-                            ✕ Remove
-                          </RemoveButton>
+                          <div style={{ display: 'flex', gap: '8px' }}>
+                            <RemoveButton onClick={() => removeFromPortfolio(stock.symbol)}>
+                              ✕
+                            </RemoveButton>
+                            <button 
+                              style={{ 
+                                background: 'rgba(78, 205, 196, 0.2)', 
+                                border: '1px solid #4ecdc4', 
+                                color: '#4ecdc4',
+                                padding: '4px 8px',
+                                borderRadius: '4px',
+                                cursor: 'pointer',
+                                fontSize: '0.8rem'
+                              }}
+                              onClick={() => navigate(`/stocks/${stock.symbol}`)}
+                            >
+                              Action
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     );
